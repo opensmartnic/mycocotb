@@ -1,78 +1,46 @@
-###############################################################################
-# Copyright (c) 2013 Potential Ventures Ltd
-# Copyright (c) 2013 SolarFlare Communications Inc
-# All rights reserved.
-#
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions are met:
-#     * Redistributions of source code must retain the above copyright
-#       notice, this list of conditions and the following disclaimer.
-#     * Redistributions in binary form must reproduce the above copyright
-#       notice, this list of conditions and the following disclaimer in the
-#       documentation and/or other materials provided with the distribution.
-#     * Neither the name of Potential Ventures Ltd,
-#       SolarFlare Communications Inc nor the
-#       names of its contributors may be used to endorse or promote products
-#       derived from this software without specific prior written permission.
-#
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-# DISCLAIMED. IN NO EVENT SHALL POTENTIAL VENTURES LTD BE LIABLE FOR ANY
-# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-###############################################################################
+CC = gcc
+CFLAGS = -g -fPIC -shared -lvpi -I/usr/include/iverilog/
+V_TARGET = build/sim
+C_TARGET = build/myvpi.vpl
+C_TARGET_NO_EXT = myvpi
+V_SRC = $(wildcard tests/*.v)
+C_SRC = VpiImpl.cpp VpiObj.cpp GpiCommon.cpp
+C_TO_PY_SRC = simulatormodule.cpp
+H_SRC = $(wildcard *.h)
+PY_INCLUDE = $(shell python3-config --includes)
+PY_LDFLAGS = $(shell python3-config --ldflags --embed)
 
-.PHONY: all
-all: test
+# mycocotb运行需要的环境变量
+COCOTB_TEST_TOPLEVEL ?= dut
+COCOTB_TEST_MODULES ?= tests.mytest
+COCOTB_RUN_TOPLEVEL ?= matrix_vector_multiplier
+COCOTB_RUN_MODULES ?= tests.matrix_vector_multiplier_mycocotb
 
-.PHONY: clean
+all: $(V_TARGET) $(C_TARGET)
+
+test: all
+	PYGPI_PYTHON_BIN=$(shell which python3) \
+	COCOTB_TOPLEVEL=$(COCOTB_TEST_TOPLEVEL) \
+	COCOTB_TEST_MODULES=$(COCOTB_TEST_MODULES) \
+	/usr/bin/vvp -M./build -m$(C_TARGET_NO_EXT) $(V_TARGET)
+
+run: all
+	PYGPI_PYTHON_BIN=$(shell which python3) \
+	COCOTB_TOPLEVEL=$(COCOTB_RUN_TOPLEVEL) \
+	COCOTB_TEST_MODULES=$(COCOTB_RUN_MODULES) \
+	/usr/bin/vvp -M./build -m$(C_TARGET_NO_EXT) $(V_TARGET)
+
+$(V_TARGET): $(V_SRC)
+	iverilog -g2012 $^ -o $@
+
+$(C_TARGET): $(C_SRC) $(H_SRC) $(C_TO_PY_SRC)
+	$(CC) -o $@  $(CFLAGS) $(PY_INCLUDE) $(C_SRC)  $(PY_LDFLAGS)
+	python setup.py build
+	cp build/lib.linux*/*.so ./mycocotb
+
 clean:
-	-@find . -name "obj" -exec rm -rf {} +
-	-@find . -name "*.pyc" -delete
-	-@find . -name "*results.xml" -delete
-	$(MAKE) -C examples clean
-	$(MAKE) -C tests clean
+	# rm -f $(C_TARGET) $(V_TARGET)
+	rm mycocotb/*.so
+	rm -rf build/*
 
-.PHONY: do_tests
-do_tests::
-	$(MAKE) -C tests
-do_tests::
-	$(MAKE) -C examples
-
-# For Jenkins we use the exit code to detect compile errors or catastrophic
-# failures and the XML to track test results
-.PHONY: jenkins
-jenkins: do_tests
-	python -m cocotb_tools.combine_results --suppress_rc --testsuites_name=cocotb_regression
-
-# By default want the exit code to indicate the test results
-.PHONY: test
-test:
-	$(MAKE) do_tests; ret=$$?; python -m cocotb_tools.combine_results && exit $$ret
-
-COCOTB_MAKEFILES_DIR = $(realpath $(shell cocotb-config --makefiles))
-AVAILABLE_SIMULATORS = $(patsubst .%,%,$(suffix $(wildcard $(COCOTB_MAKEFILES_DIR)/simulators/Makefile.*)))
-
-.PHONY: help
-help:
-	@echo ""
-	@echo "This cocotb makefile has the following targets"
-	@echo ""
-	@echo "all, test - run regression producing combined_results.xml"
-	@echo "            (return error code produced by sub-makes)"
-	@echo "jenkins   - run regression producing combined_results.xml"
-	@echo "            (return error code 1 if any failure was found)"
-	@echo "clean     - remove build directory and all simulation artefacts"
-	@echo ""
-	@echo "The default simulator is Icarus Verilog."
-	@echo "To use another, set the environment variable SIM as below."
-	@echo "Available simulators:"
-	@for X in $(sort $(AVAILABLE_SIMULATORS)); do \
-		echo export SIM=$$X; \
-	done
-	@echo ""
+.PHONY: all run clean test
