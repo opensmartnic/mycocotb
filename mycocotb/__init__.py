@@ -211,7 +211,7 @@ def _initialise_testbench(argv_: List[str]) -> None:
     # setup global scheduler system
     global _scheduler_inst
     # 这里原先的可以在一次测试结束后继续执行下一个测试
-    # 我们进行了简化，假设用户将只进行一次测试
+    # 我们进行了简化，假设用户将只进行一次测试，即给test_complete_cb赋一个空值
     _scheduler_inst = Scheduler(test_complete_cb=lambda: None)
     # 在这里启动_write_scheduler._do_writes()的后台服务，在这个服务里，会根据
     # 是否有写入请求，自动await 一次 ReadWrite，然后才真正触发写入

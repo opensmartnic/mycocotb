@@ -1,17 +1,4 @@
-统计代码行数
-```
-find . -type d -name tests -prune -o -name "*.c" -o -name "*.cpp" -o -name "*.h" -o -name "*.py"  -type f | xargs wc -l
-```
+出于更好地理解cocotb的目的，在这里，我尝试使用接近8000行的代码实现一个很简易的cocotb，支持linux环境下使用icarus做一些简单的仿真。
 
-我们几乎不处理任务结束、退出的情况
-
-
-正常cocotb启动并附加打印debug信息的命令：
-```
-make COCOTB_LOG_LEVEL=trace COCOTB_SCHEDULER_DEBUG=1
-```
-
-替代telnet localhost 4000的命令：
-```
-rlwrap nc localhost 4000
-```
+具体的介绍参考：
+https://github.com/opensmartnic/cocotb_primer/blob/master/build_cocotb_from_scratch.md
